@@ -10,10 +10,75 @@ parameters:
   value: "30"
 - name: PGSSLMODE
   value: "require"
-- name: DB_INIT_CONTAINER
+- name: DB_CONTAINER
   value: ""
-- name: DB_INIT_CONTAINER_TAG
+- name: DB_CONTAINER_TAG
   value: ""
-- name: DB_INIT_SCRIPTS_CONFIGMAP
+- name: DB_SCRIPTS_CONFIGMAP
   value: ""
 objects:
+- apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: postgres-dba
+  spec:
+    template:
+      metadata:
+        labels:
+          app: postgres-dba
+        annotations:
+          app: postgres-dba
+      spec:
+        # serviceAccountName: TBD
+        activeDeadlineSeconds: 3600
+        backoffLimit: 1
+        completions: 1
+        parallelism: 1
+        restartPolicy: Never
+        volumes:
+        - name: database-scripts
+          configMap:
+            name: ${{DB_SCRIPTS_CONFIGMAP}}
+        containers:
+        - name: postgres-dba
+          image: ${DB_CONTAINER}:${DB_CONTAINER_TAG}
+          volumeMounts:
+          - name: database-scripts
+            mountPath: /db
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          env:
+          - name: PGHOST
+            valueFrom:
+              secretKeyRef:
+                name: ${{DB_SECRET}}
+                key: "db.host"
+          - name: PGPORT
+            valueFrom:
+              secretKeyRef:
+                name: ${{DB_SECRET}}
+                key: "db.port"
+          - name: PGDATABASE
+            valueFrom:
+              secretKeyRef:
+                name: ${{DB_SECRET}}
+                key: "db.name"
+          - name: PGUSER
+            valueFrom:
+              secretKeyRef:
+                name: ${{DB_SECRET}}
+                key: "db.user"
+          - name: PGPASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: ${{DB_SECRET}}
+                key: "db.password"
+          - name: PGSSLMODE
+            value: ${{PGSSLMODE}}
+          - name: PGCONNECT_TIMEOUT
+            value: ${PGCONNECT_TIMEOUT}
